@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>inferd — Wave 3: Distributed Load Balancing Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(18, 24, 40, 0.9);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-router: #a855f7;
+      --accent-router-glow: rgba(168, 85, 247, 0.35);
+      --accent-s1: #38bdf8;
+      --accent-s2: #34d399;
+      --accent-s3: #fbbf24;
+      --accent-rose: #f43f5e;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-ui: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(circle at 20% 15%, rgba(168, 85, 247, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(11, 15, 25, 0.85);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge-wave {
+      background: linear-gradient(135deg, #a855f7, #6366f1);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .brand h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand h1 span {
+      color: #9ca3af;
+      font-weight: 400;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      font-family: var(--font-ui);
+      user-select: none;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #a855f7, #7c3aed);
+      border: none;
+      box-shadow: 0 4px 14px var(--accent-router-glow);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #b86bfc, #8b5cf6);
+      transform: translateY(-1px);
+    }
+
+    .btn-burst {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      border: none;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+    }
+
+    .btn-burst:hover {
+      background: linear-gradient(135deg, #38bdf8, #3b82f6);
+      transform: translateY(-1px);
+    }
+
+    main {
+      flex: 1;
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      max-width: 1500px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Visual Architecture Canvas Stage */
+    .visual-stage {
+      position: relative;
+      display: grid;
+      grid-template-columns: 270px 290px 1fr;
+      gap: 28px;
+      align-items: stretch;
+      min-height: 520px;
+    }
+
+    /* HTML5 Canvas for Rails and Animated Flying Packets */
+    #connector-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 18px;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      z-index: 10;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .port-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-muted);
+    }
+
+    /* Stage 1: Client Card */
+    .client-card {
+      border-top: 3px solid #6366f1;
+    }
+
+    .control-group {
+      margin-bottom: 14px;
+    }
+
+    .control-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .control-group label span {
+      font-family: var(--font-mono);
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #a855f7;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      outline: none;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      margin-bottom: 14px;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+    }
+
+    .switch input { opacity: 0; width: 0; height: 0; }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.15);
+      transition: .2s;
+      border-radius: 22px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider { background-color: #10b981; }
+    input:checked + .slider:before { transform: translateX(18px); }
+
+    .client-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: auto;
+    }
+
+    /* Stage 2: Router Card */
+    .router-card {
+      border-top: 3px solid var(--accent-router);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .router-dial {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      border: 2px dashed rgba(168, 85, 247, 0.4);
+      margin: 12px auto;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, transparent 70%);
+      box-shadow: 0 0 25px var(--accent-router-glow);
+    }
+
+    .dial-pointer {
+      position: absolute;
+      width: 4px;
+      height: 48px;
+      background: linear-gradient(to top, var(--accent-router), #f472b6);
+      bottom: 50%;
+      left: calc(50% - 2px);
+      transform-origin: bottom center;
+      border-radius: 999px;
+      box-shadow: 0 0 10px #f472b6;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .dial-center {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 10px #fff;
+      z-index: 2;
+    }
+
+    .dial-node {
+      position: absolute;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      padding: 3px 6px;
+      border-radius: 4px;
+      background: rgba(18, 24, 40, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .dial-node.n-s1 { top: 2px; color: var(--accent-s1); border-color: var(--accent-s1); }
+    .dial-node.n-s2 { bottom: 10px; right: 6px; color: var(--accent-s2); border-color: var(--accent-s2); }
+    .dial-node.n-s3 { bottom: 10px; left: 6px; color: var(--accent-s3); border-color: var(--accent-s3); }
+
+    .counter-display {
+      font-family: var(--font-mono);
+      background: rgba(0, 0, 0, 0.4);
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      width: 100%;
+      margin: 8px 0;
+      font-size: 12px;
+    }
+
+    .counter-display .val {
+      color: #a855f7;
+      font-weight: 700;
+      font-size: 20px;
+      margin: 2px 0;
+    }
+
+    .code-snippet {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #94a3b8;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 8px 10px;
+      border-radius: 6px;
+      width: 100%;
+      text-align: left;
+      border-left: 2px solid var(--accent-router);
+    }
+
+    /* Stage 3: 3 Servers */
+    .servers-grid {
+      display: grid;
+      grid-template-rows: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .server-card {
+      background: rgba(22, 30, 49, 0.75);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .server-card.s1 { border-left: 4px solid var(--accent-s1); }
+    .server-card.s2 { border-left: 4px solid var(--accent-s2); }
+    .server-card.s3 { border-left: 4px solid var(--accent-s3); }
+
+    .server-card.active-target {
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+      border-color: rgba(168, 85, 247, 0.4);
+    }
+
+    .server-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .server-title {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .server-stats-pills {
+      display: flex;
+      gap: 8px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
+
+    .pill {
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .pill.success { color: #34d399; }
+    .pill.queue-tag { color: #fbbf24; }
+
+    /* Live Queue Track */
+    .queue-container {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .queue-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .queue-track {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      padding: 3px 6px;
+      gap: 6px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      white-space: nowrap;
+    }
+
+    .queue-track::-webkit-scrollbar { height: 4px; }
+    .queue-track::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+
+    .job-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      flex-shrink: 0;
+      animation: popIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .job-p-high {
+      background: rgba(244, 63, 94, 0.25);
+      border-color: rgba(244, 63, 94, 0.6);
+      color: #fda4af;
+    }
+
+    .job-p-med {
+      background: rgba(251, 191, 36, 0.25);
+      border-color: rgba(251, 191, 36, 0.6);
+      color: #fde68a;
+    }
+
+    .job-p-low {
+      background: rgba(56, 189, 248, 0.25);
+      border-color: rgba(56, 189, 248, 0.6);
+      color: #bae6fd;
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    /* 5 Worker Slots */
+    .workers-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .worker-slot {
+      flex: 1;
+      height: 22px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .worker-slot.busy {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+      font-weight: 700;
+    }
+
+    .worker-slot .worker-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      background: rgba(56, 189, 248, 0.28);
+      width: 0%;
+      pointer-events: none;
+    }
+
+    .worker-slot .w-label {
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Bottom Telemetry Footer */
+    .stats-footer {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+    }
+
+    .stat-box {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stat-box .title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stat-box .number {
+      font-size: 20px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    .distribution-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
+
+    .bar-label { width: 44px; color: var(--text-muted); }
+    .bar-track {
+      flex: 1;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      width: 0%;
+      transition: width 0.25s ease;
+    }
+
+    .fill-s1 { background: var(--accent-s1); }
+    .fill-s2 { background: var(--accent-s2); }
+    .fill-s3 { background: var(--accent-s3); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span class="badge-wave">Wave 3</span>
+      <h1>inferd <span>— Distributed Reverse Proxy Simulator</span></h1>
+    </div>
+    <div class="header-controls">
+      <button class="btn" id="btn-reset" title="Reset all state">↺ Reset</button>
+      <button class="btn btn-burst" id="btn-burst">⚡ Burst 60 Req</button>
+      <button class="btn btn-primary" id="btn-single">+ Single Request</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="visual-stage" id="stage">
+      <!-- HTML5 Canvas for rails and flying packets -->
+      <canvas id="connector-canvas"></canvas>
+
+      <!-- STAGE 1: CLIENT -->
+      <div class="card client-card" id="client-node">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            Clients Pool
+          </div>
+          <span class="port-tag">Traffic Gen</span>
+        </div>
+
+        <div class="toggle-row">
+          <span style="font-size: 13px; font-weight: 600;">Continuous Traffic</span>
+          <label class="switch">
+            <input type="checkbox" id="auto-traffic-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-group">
+          <label>Traffic Rate <span id="val-rate">100 req/s</span></label>
+          <input type="range" id="slider-rate" min="1" max="150" value="100">
+        </div>
+
+        <div class="control-group">
+          <label>Priority Bias <span id="val-priority">Mixed (1..10)</span></label>
+          <input type="range" id="slider-priority" min="1" max="3" value="2">
+        </div>
+
+        <div class="control-group" style="margin-top: 8px;">
+          <label>Total Generated <span id="stat-generated" style="color: #818cf8;">0</span></label>
+        </div>
+
+        <div class="client-actions">
+          <button class="btn" style="width: 100%; justify-content: center;" id="btn-fire-vip">⭐ Send VIP (Priority 10)</button>
+        </div>
+      </div>
+
+      <!-- STAGE 2: ROUTER (Wave 3 distribution) -->
+      <div class="card router-card" id="router-node">
+        <div class="card-header" style="width: 100%;">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-router)" stroke-width="2"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+            Router Reverse Proxy
+          </div>
+          <span class="port-tag" style="color: var(--accent-router);">:8080</span>
+        </div>
+
+        <div class="router-dial">
+          <div class="dial-node n-s1">:8081</div>
+          <div class="dial-node n-s2">:8082</div>
+          <div class="dial-node n-s3">:8083</div>
+          <div class="dial-pointer" id="dial-pointer"></div>
+          <div class="dial-center"></div>
+        </div>
+
+        <div class="counter-display">
+          <div>atomic counter.Add(1)</div>
+          <div class="val" id="router-counter">0</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+            Target: <span id="router-target" style="color: #38bdf8; font-weight: 700;">:8081</span>
+          </div>
+        </div>
+
+        <div class="code-snippet">
+          <code>backends[counter.Add(1) % 3]</code>
+        </div>
+      </div>
+
+      <!-- STAGE 3: 3 SERVERS WITH LIVE QUEUES -->
+      <div class="servers-grid" id="servers-grid">
+
+        <!-- SERVER 1 -->
+        <div class="server-card s1" id="server-0">
+          <div class="server-top">
+            <div class="server-title">
+              <span style="color: var(--accent-s1);">●</span> Server 1
+              <span class="port-tag">:8081</span>
+            </div>
+            <div class="server-stats-pills">
+              <span class="pill queue-tag">Queue: <b id="s0-q-len">0</b>/50</span>
+              <span class="pill success">Done: <b id="s0-done">0</b></span>
+            </div>
+          </div>
+          <div class="queue-container">
+            <div class="queue-label-row">
+              <span>PriorityQueue (Max Heap)</span>
+              <span>Max Batch: 3</span>
+            </div>
+            <div class="queue-track" id="s0-queue-track"></div>
+          </div>
+          <div class="workers-row" id="s0-workers">
+            <div class="worker-slot" id="s0-w0"><div class="worker-fill"></div><span class="w-label">W1</span></div>
+            <div class="worker-slot" id="s0-w1"><div class="worker-fill"></div><span class="w-label">W2</span></div>
+            <div class="worker-slot" id="s0-w2"><div class="worker-fill"></div><span class="w-label">W3</span></div>
+            <div class="worker-slot" id="s0-w3"><div class="worker-fill"></div><span class="w-label">W4</span></div>
+            <div class="worker-slot" id="s0-w4"><div class="worker-fill"></div><span class="w-label">W5</span></div>
+          </div>
+        </div>
+
+        <!-- SERVER 2 -->
+        <div class="server-card s2" id="server-1">
+          <div class="server-top">
+            <div class="server-title">
+              <span style="color: var(--accent-s2);">●</span> Server 2
+              <span class="port-tag">:8082</span>
+            </div>
+            <div class="server-stats-pills">
+              <span class="pill queue-tag">Queue: <b id="s1-q-len">0</b>/50</span>
+              <span class="pill success">Done: <b id="s1-done">0</b></span>
+            </div>
+          </div>
+          <div class="queue-container">
+            <div class="queue-label-row">
+              <span>PriorityQueue (Max Heap)</span>
+              <span>Max Batch: 3</span>
+            </div>
+            <div class="queue-track" id="s1-queue-track"></div>
+          </div>
+          <div class="workers-row" id="s1-workers">
+            <div class="worker-slot" id="s1-w0"><div class="worker-fill"></div><span class="w-label">W1</span></div>
+            <div class="worker-slot" id="s1-w1"><div class="worker-fill"></div><span class="w-label">W2</span></div>
+            <div class="worker-slot" id="s1-w2"><div class="worker-fill"></div><span class="w-label">W3</span></div>
+            <div class="worker-slot" id="s1-w3"><div class="worker-fill"></div><span class="w-label">W4</span></div>
+            <div class="worker-slot" id="s1-w4"><div class="worker-fill"></div><span class="w-label">W5</span></div>
+          </div>
+        </div>
+
+        <!-- SERVER 3 -->
+        <div class="server-card s3" id="server-2">
+          <div class="server-top">
+            <div class="server-title">
+              <span style="color: var(--accent-s3);">●</span> Server 3
+              <span class="port-tag">:8083</span>
+            </div>
+            <div class="server-stats-pills">
+              <span class="pill queue-tag">Queue: <b id="s2-q-len">0</b>/50</span>
+              <span class="pill success">Done: <b id="s2-done">0</b></span>
+            </div>
+          </div>
+          <div class="queue-container">
+            <div class="queue-label-row">
+              <span>PriorityQueue (Max Heap)</span>
+              <span>Max Batch: 3</span>
+            </div>
+            <div class="queue-track" id="s2-queue-track"></div>
+          </div>
+          <div class="workers-row" id="s2-workers">
+            <div class="worker-slot" id="s2-w0"><div class="worker-fill"></div><span class="w-label">W1</span></div>
+            <div class="worker-slot" id="s2-w1"><div class="worker-fill"></div><span class="w-label">W2</span></div>
+            <div class="worker-slot" id="s2-w2"><div class="worker-fill"></div><span class="w-label">W3</span></div>
+            <div class="worker-slot" id="s2-w3"><div class="worker-fill"></div><span class="w-label">W4</span></div>
+            <div class="worker-slot" id="s2-w4"><div class="worker-fill"></div><span class="w-label">W5</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- METRICS & DISTRIBUTION PROOF FOOTER -->
+    <div class="stats-footer">
+      <div class="stat-box">
+        <span class="title">Load Distribution</span>
+        <div class="distribution-bars">
+          <div class="bar-row">
+            <span class="bar-label">:8081</span>
+            <div class="bar-track"><div class="bar-fill fill-s1" id="dist-bar-0"></div></div>
+            <span id="dist-pct-0" style="width: 38px; text-align: right;">0%</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">:8082</span>
+            <div class="bar-track"><div class="bar-fill fill-s2" id="dist-bar-1"></div></div>
+            <span id="dist-pct-1" style="width: 38px; text-align: right;">0%</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">:8083</span>
+            <div class="bar-track"><div class="bar-fill fill-s3" id="dist-bar-2"></div></div>
+            <span id="dist-pct-2" style="width: 38px; text-align: right;">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-box">
+        <span class="title">Total Dispatched</span>
+        <div class="number" id="stat-total-dispatched" style="color: #a855f7;">0</div>
+        <div style="font-size: 11px; color: var(--text-muted);">Routed via Reverse Proxy</div>
+      </div>
+
+      <div class="stat-box">
+        <span class="title">Completed / Served</span>
+        <div class="number" id="stat-total-completed" style="color: #34d399;">0</div>
+        <div style="font-size: 11px; color: var(--text-muted);">Across 15 Workers</div>
+      </div>
+
+      <div class="stat-box">
+        <span class="title">Rejected (Queue 50)</span>
+        <div class="number" id="stat-total-rejected" style="color: var(--accent-rose);">0</div>
+        <div style="font-size: 11px; color: var(--text-muted);">HTTP 503 Backpressure</div>
+      </div>
+
+      <div class="stat-box">
+        <span class="title">Wave 3 Round-Robin Invariant</span>
+        <div class="number" style="font-size: 15px; color: #38bdf8; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">✓</span> Balanced Distribution
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted);">
+          |Count(A) - Count(B)| ≤ 1
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // --- SIMULATOR ENGINE (Exact Wave 3 Go Router + Wave 1/2 Server model) ---
+    class Job {
+      constructor(id, priority) {
+        this.id = id;
+        this.priority = priority;
+      }
+    }
+
+    class ServerInstance {
+      constructor(id, port) {
+        this.id = id;
+        this.port = port;
+        this.queue = [];
+        this.completedCount = 0;
+        this.rejectedCount = 0;
+        this.routedCount = 0;
+        this.workers = Array.from({ length: 5 }, (_, i) => ({
+          id: i + 1,
+          busy: false,
+          remaining: 0,
+          totalDuration: 0,
+          currentBatch: []
+        }));
+      }
+
+      enqueue(job) {
+        this.routedCount++;
+        // Enforce Wave 1/2 Queue Bound: capacity = 50
+        if (this.queue.length >= 50) {
+          this.rejectedCount++;
+          return false;
+        }
+        // Priority Queue (Max Heap ordering: higher priority first)
+        const idx = this.queue.findIndex(j => j.priority < job.priority);
+        if (idx === -1) {
+          this.queue.push(job);
+        } else {
+          this.queue.splice(idx, 0, job);
+        }
+        return true;
+      }
+
+      step(deltaMs) {
+        // 1. Dispatch to idle workers (batch size 1..3)
+        const idleWorker = this.workers.find(w => !w.busy);
+        if (idleWorker && this.queue.length > 0) {
+          const batchSize = Math.min(3, this.queue.length);
+          const batch = this.queue.splice(0, batchSize);
+          
+          idleWorker.busy = true;
+          idleWorker.currentBatch = batch;
+          // 500ms base + 100ms per extra job
+          idleWorker.totalDuration = 500 + (batch.length - 1) * 100;
+          idleWorker.remaining = idleWorker.totalDuration;
+        }
+
+        // 2. Compute
+        for (const w of this.workers) {
+          if (w.busy) {
+            w.remaining -= deltaMs;
+            if (w.remaining <= 0) {
+              this.completedCount += w.currentBatch.length;
+              w.busy = false;
+              w.remaining = 0;
+              w.currentBatch = [];
+            }
+          }
+        }
+      }
+    }
+
+    const servers = [
+      new ServerInstance(0, 8081),
+      new ServerInstance(1, 8082),
+      new ServerInstance(2, 8083)
+    ];
+
+    let routerCounter = 0;
+    let totalGenerated = 0;
+    let jobIdCounter = 1;
+    let reqAccumulator = 0;
+
+    // Active in-flight animated packets
+    const activePackets = [];
+
+    // DOM Elements
+    const dialPointer = document.getElementById('dial-pointer');
+    const routerCounterEl = document.getElementById('router-counter');
+    const routerTargetEl = document.getElementById('router-target');
+    const statGeneratedEl = document.getElementById('stat-generated');
+    const statDispatchedEl = document.getElementById('stat-total-dispatched');
+    const statCompletedEl = document.getElementById('stat-total-completed');
+    const statRejectedEl = document.getElementById('stat-total-rejected');
+    const stageEl = document.getElementById('stage');
+    const canvas = document.getElementById('connector-canvas');
+    const ctx = canvas.getContext('2d');
+
+    const dialAngles = [0, 120, 240];
+    const serverColors = ['#38bdf8', '#34d399', '#fbbf24'];
+
+    function resizeCanvas() {
+      canvas.width = stageEl.clientWidth;
+      canvas.height = stageEl.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function spawnPacket(fromX, fromY, toX, toY, color, duration, onDone) {
+      if (activePackets.length >= 75) {
+        if (onDone) onDone();
+        return;
+      }
+      activePackets.push({
+        fromX, fromY, toX, toY, color, duration,
+        startTime: performance.now(),
+        onDone
+      });
+    }
+
+    function routeRequest(priority, isBurst = false) {
+      totalGenerated++;
+      statGeneratedEl.textContent = totalGenerated;
+
+      // 1. Router atomic dispatch: counter.Add(1) % 3
+      routerCounter++;
+      const targetIdx = routerCounter % 3;
+      const targetServer = servers[targetIdx];
+
+      routerCounterEl.textContent = routerCounter;
+      routerTargetEl.textContent = `:${targetServer.port}`;
+      routerTargetEl.style.color = serverColors[targetIdx];
+      dialPointer.style.transform = `rotate(${dialAngles[targetIdx]}deg)`;
+
+      const sCard = document.getElementById(`server-${targetIdx}`);
+      sCard.classList.add('active-target');
+      setTimeout(() => sCard.classList.remove('active-target'), 80);
+
+      // 2. ENQUEUE IMMEDIATELY INTO MAX-HEAP (0ms delay!)
+      targetServer.enqueue(new Job(jobIdCounter++, priority));
+
+      // 3. Concurrently animate flying packets as visual telemetry
+      const stageRect = stageEl.getBoundingClientRect();
+      const clientRect = document.getElementById('client-node').getBoundingClientRect();
+      const routerRect = document.getElementById('router-node').getBoundingClientRect();
+      const sRect = sCard.getBoundingClientRect();
+
+      const cX = clientRect.right - stageRect.left;
+      const cY = clientRect.top + clientRect.height / 2 - stageRect.top;
+      const rLeftX = routerRect.left - stageRect.left;
+      const rY = routerRect.top + routerRect.height / 2 - stageRect.top;
+      const rRightX = routerRect.right - stageRect.left;
+      const sX = sRect.left - stageRect.left;
+      const sY = sRect.top + sRect.height / 2 - stageRect.top;
+
+      const d1 = isBurst ? 25 : 50;
+      const d2 = isBurst ? 35 : 60;
+
+      spawnPacket(cX, cY, rLeftX, rY, '#a855f7', d1, () => {
+        spawnPacket(rRightX, rY, sX, sY, serverColors[targetIdx], d2);
+      });
+    }
+
+    function getRandomPriority() {
+      const mode = parseInt(document.getElementById('slider-priority').value);
+      if (mode === 1) return Math.floor(Math.random() * 4) + 1; // 1..4 low
+      if (mode === 3) return Math.floor(Math.random() * 4) + 7; // 7..10 high
+      return Math.floor(Math.random() * 10) + 1; // 1..10 mixed
+    }
+
+    // Button Events
+    document.getElementById('btn-single').addEventListener('click', () => {
+      routeRequest(getRandomPriority(), false);
+    });
+
+    // Instantaneous Burst: All 60 requests hit the router and heap immediately
+    document.getElementById('btn-burst').addEventListener('click', () => {
+      for (let i = 0; i < 60; i++) {
+        routeRequest(getRandomPriority(), true);
+      }
+    });
+
+    document.getElementById('btn-fire-vip').addEventListener('click', () => {
+      routeRequest(10, false);
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      routerCounter = 0;
+      totalGenerated = 0;
+      jobIdCounter = 1;
+      reqAccumulator = 0;
+      activePackets.length = 0;
+      servers.forEach(s => {
+        s.queue = [];
+        s.completedCount = 0;
+        s.rejectedCount = 0;
+        s.routedCount = 0;
+        s.workers.forEach(w => {
+          w.busy = false;
+          w.remaining = 0;
+          w.currentBatch = [];
+        });
+      });
+      routerCounterEl.textContent = '0';
+      routerTargetEl.textContent = ':8081';
+      routerTargetEl.style.color = '#38bdf8';
+      dialPointer.style.transform = `rotate(0deg)`;
+      statGeneratedEl.textContent = '0';
+      updateUI();
+    });
+
+    // Auto Traffic Controls
+    const autoToggle = document.getElementById('auto-traffic-toggle');
+    const rateSlider = document.getElementById('slider-rate');
+    const rateVal = document.getElementById('val-rate');
+
+    rateSlider.addEventListener('input', () => {
+      rateVal.textContent = `${rateSlider.value} req/s`;
+    });
+
+    document.getElementById('slider-priority').addEventListener('input', (e) => {
+      const v = parseInt(e.target.value);
+      const labels = ['Low (1..4)', 'Mixed (1..10)', 'VIP (7..10)'];
+      document.getElementById('val-priority').textContent = labels[v - 1];
+    });
+
+    function updateUI() {
+      let totalCompleted = 0;
+      let totalDispatched = 0;
+      let totalRejected = 0;
+
+      servers.forEach((s, idx) => {
+        totalCompleted += s.completedCount;
+        totalDispatched += s.routedCount;
+        totalRejected += s.rejectedCount;
+
+        const qLenEl = document.getElementById(`s${idx}-q-len`);
+        if (s.queue.length >= 50) {
+          qLenEl.innerHTML = `<span style="color:var(--accent-rose); font-weight:700;">50 (FULL)</span>`;
+        } else {
+          qLenEl.textContent = s.queue.length;
+        }
+
+        document.getElementById(`s${idx}-done`).textContent = s.completedCount;
+
+        // Render queue
+        const track = document.getElementById(`s${idx}-queue-track`);
+        track.innerHTML = '';
+        s.queue.slice(0, 16).forEach(job => {
+          const pill = document.createElement('span');
+          let pClass = 'job-p-low';
+          if (job.priority >= 8) pClass = 'job-p-high';
+          else if (job.priority >= 5) pClass = 'job-p-med';
+          pill.className = `job-pill ${pClass}`;
+          pill.textContent = `P${job.priority}`;
+          track.appendChild(pill);
+        });
+
+        // Render worker slots
+        s.workers.forEach((w, wIdx) => {
+          const wSlot = document.getElementById(`s${idx}-w${wIdx}`);
+          const fill = wSlot.querySelector('.worker-fill');
+          const label = wSlot.querySelector('.w-label');
+          if (w.busy) {
+            wSlot.classList.add('busy');
+            const pct = 100 - Math.max(0, (w.remaining / w.totalDuration) * 100);
+            fill.style.width = `${pct}%`;
+            label.textContent = `B${w.currentBatch.length}`;
+          } else {
+            wSlot.classList.remove('busy');
+            fill.style.width = '0%';
+            label.textContent = `W${w.id}`;
+          }
+        });
+
+        // Distribution percentage
+        const pct = totalDispatched > 0 ? Math.round((s.routedCount / totalDispatched) * 100) : 0;
+        document.getElementById(`dist-bar-${idx}`).style.width = `${pct}%`;
+        document.getElementById(`dist-pct-${idx}`).textContent = `${pct}%`;
+      });
+
+      statDispatchedEl.textContent = totalDispatched;
+      statCompletedEl.textContent = totalCompleted;
+      if (statRejectedEl) statRejectedEl.textContent = totalRejected;
+    }
+
+    // Render & Simulation Loop
+    let lastTime = performance.now();
+
+    function loop(now) {
+      const deltaMs = Math.min(now - lastTime, 100);
+      lastTime = now;
+
+      // 1. Precise frame-based traffic generation up to 100+ req/s
+      if (autoToggle.checked) {
+        const rps = parseInt(rateSlider.value);
+        reqAccumulator += (rps * deltaMs) / 1000;
+        let spawnedThisFrame = 0;
+        while (reqAccumulator >= 1 && spawnedThisFrame < 15) {
+          routeRequest(getRandomPriority());
+          reqAccumulator -= 1;
+          spawnedThisFrame++;
+        }
+        if (reqAccumulator > 6) reqAccumulator = 0;
+      }
+
+      // 2. Advance Server Simulation
+      servers.forEach(s => s.step(deltaMs));
+
+      // 3. Draw Connection Rails & Flying Packets on Canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const stageRect = stageEl.getBoundingClientRect();
+      const clientRect = document.getElementById('client-node').getBoundingClientRect();
+      const routerRect = document.getElementById('router-node').getBoundingClientRect();
+
+      const cX = clientRect.right - stageRect.left;
+      const cY = clientRect.top + clientRect.height / 2 - stageRect.top;
+      const rLeftX = routerRect.left - stageRect.left;
+      const rRightX = routerRect.right - stageRect.left;
+      const rY = routerRect.top + routerRect.height / 2 - stageRect.top;
+
+      // Static Rail: Client -> Router
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.25)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.moveTo(cX, cY);
+      ctx.lineTo(rLeftX, rY);
+      ctx.stroke();
+
+      // Static Rails: Router -> 3 Servers
+      servers.forEach((_, idx) => {
+        const sRect = document.getElementById(`server-${idx}`).getBoundingClientRect();
+        const sX = sRect.left - stageRect.left;
+        const sY = sRect.top + sRect.height / 2 - stageRect.top;
+
+        ctx.beginPath();
+        ctx.strokeStyle = serverColors[idx] + '33';
+        ctx.moveTo(rRightX, rY);
+        ctx.bezierCurveTo(rRightX + 40, rY, sX - 40, sY, sX, sY);
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      // Draw active in-flight packets
+      for (let i = activePackets.length - 1; i >= 0; i--) {
+        const p = activePackets[i];
+        const progress = Math.min(1, (now - p.startTime) / p.duration);
+        const ease = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+
+        const curX = p.fromX + (p.toX - p.fromX) * ease;
+        const curY = p.fromY + (p.toY - p.fromY) * ease;
+
+        // Packet glow & core
+        ctx.save();
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(curX, curY, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(curX, curY, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        if (progress >= 1) {
+          activePackets.splice(i, 1);
+          if (p.onDone) p.onDone();
+        }
+      }
+
+      // 4. Update DOM telemetry
+      updateUI();
+
+      requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
