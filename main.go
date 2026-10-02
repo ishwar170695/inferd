@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	port := flag.String("port", "8080", "port to listen on")
+	port := flag.String("port", "8081", "port to listen on")
 	flag.Parse()
 
 	m := NewMetrics()
@@ -67,6 +67,10 @@ func main() {
 
 	http.HandleFunc("/infer", infer(scheduler))
 	http.HandleFunc("/metrics", metricsHandler(m))
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok\n"))
+	})
 	fmt.Printf("inferd listening on :%s\n", *port)
 	http.ListenAndServe(":"+*port, nil)
 }
