@@ -19,8 +19,13 @@ func infer(scheduler *Scheduler) http.HandlerFunc {
             }
             priority = parsed
         }
+		name := ""
+		if r.Header.Get("X-Simulate-Crash") == "true" {
+			name = "crash"
+		}
 		start := time.Now()
 		j := &Job{
+			name:     name,
 			result:   make(chan string, 1),
 			priority: priority,
 			ctx:      r.Context(),

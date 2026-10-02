@@ -19,6 +19,8 @@ type Metrics struct {
 	failed_req atomic.Int64
 	// _ [56]byte
 	cancelled_req atomic.Int64
+	requeued_req  atomic.Int64
+	wasted_work   atomic.Int64 // nanoseconds spent computing dead/cancelled jobs
 	// _ [56]byte
 	queue_depth    atomic.Int64
 	// _ [56]byte
@@ -42,6 +44,18 @@ func (m *Metrics) IncFailed() {
 
 func (m *Metrics) IncCancelled() {
 	m.cancelled_req.Add(1)
+}
+
+func (m *Metrics) IncRequeued() {
+	m.requeued_req.Add(1)
+}
+
+func (m *Metrics) AddWastedWork(d time.Duration) {
+	m.wasted_work.Add(int64(d))
+}
+
+func (m *Metrics) WastedWork() time.Duration {
+	return time.Duration(m.wasted_work.Load())
 }
 
 func (m *Metrics) IncCompleted(i int64) {

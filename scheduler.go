@@ -67,7 +67,13 @@ type Scheduler struct {
 	metrics *Metrics
 }
 
-const maxQueueCapacity = 50
+const maxQueueCapacity = 150
+
+var (
+	BaseCost          = 500 * time.Millisecond
+	PerJobCost        = 100 * time.Millisecond
+	DisableMechanisms = false
+)
 
 func (s *Scheduler) Submit(j *Job) bool {
 	s.mu.Lock()
@@ -118,7 +124,7 @@ func (s *Scheduler) dispatch() {
 			k := heap.Pop(&s.queue).(*Job)
 			s.metrics.DecQueueDepth()
 
-			if k.cancelled() {
+			if !DisableMechanisms && k.cancelled() {
 				fmt.Printf("job (priority %d) cancelled while queued\n", k.priority)
 				s.metrics.IncCancelled()
 				s.metrics.DecLoad(1)
@@ -168,28 +174,35 @@ func (s *Scheduler) dispatch() {
 
 func process(w *Worker, batch Batch, m *Metrics) {
 
-	baseCost := 500 * time.Millisecond
-	perJobCost := 100 * time.Millisecond
-
 	fmt.Printf("worker %d picked batch of %d jobs\n", w.id, len(batch))
 
 	w.remaining = batch
-	time.Sleep(baseCost + perJobCost*time.Duration(len(batch)-1))
+	time.Sleep(BaseCost + PerJobCost*time.Duration(len(batch)-1))
 
 	for i, j := range batch {
+		if j.name == "crash" {
+			panic(fmt.Sprintf("worker %d crashed on poison pill job %d", w.id, j.priority))
+		}
+
 		if j.cancelled() {
-			fmt.Printf("job (priority %d) cancelled, skipping w%d\n", j.priority, w.id)
-			m.IncCancelled()
-			m.DecLoad(1)
-			w.remaining = batch[i+1:]
-			continue
+			if !DisableMechanisms {
+				fmt.Printf("job (priority %d) cancelled, skipping w%d\n", j.priority, w.id)
+				m.IncCancelled()
+				m.DecLoad(1)
+				w.remaining = batch[i+1:]
+				continue
+			} else {
+				// Baseline does not skip cancelled jobs: tracks wasted work
+				m.IncCancelled()
+				m.AddWastedWork(PerJobCost + BaseCost/time.Duration(len(batch)))
+			}
 		}
 
 		fmt.Printf("priority %d processed by w%d\n", j.priority, w.id)
-		j.result <- fmt.Sprintf(
-			"priority %d processed by w%d\n",
-			j.priority, w.id,
-		)
+		select {
+		case j.result <- fmt.Sprintf("priority %d processed by w%d\n", j.priority, w.id):
+		default:
+		}
 		m.IncCompleted(1)
 		m.DecLoad(1)
 		w.remaining = batch[i+1:]

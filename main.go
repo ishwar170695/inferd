@@ -34,6 +34,20 @@ func main() {
 						if r := recover(); r != nil {
 							fmt.Printf("Worker %d panicked: %v\n", worker.id, r)
 
+							if DisableMechanisms {
+								// Baseline: worker crashes and drops entire remaining batch
+								for _, j := range worker.remaining {
+									select {
+									case j.result <- "error: worker crash (baseline dropped batch)\n":
+									default:
+									}
+									m.IncFailed()
+									m.DecLoad(1)
+								}
+								worker.remaining = nil
+								return
+							}
+
 							for _, j := range worker.remaining {
 								if j.cancelled() {
 									fmt.Printf("Job (priority %d) cancelled, dropping during recovery\n", j.priority)
@@ -43,14 +57,21 @@ func main() {
 								j.retries++
 								if j.retries > 3 {
 									fmt.Printf("Job (priority %d) failed after %d retries\n", j.priority, j.retries)
-									j.result <- "error: job failed after 3 retries\n"
+									select {
+									case j.result <- "error: job failed after 3 retries\n":
+									default:
+									}
 									m.IncFailed()
 									m.DecLoad(1)
 								} else {
 									fmt.Printf("Requeuing job (priority %d, retry %d)\n", j.priority, j.retries)
+									m.IncRequeued()
 									if !scheduler.Requeue(j) {
 										fmt.Printf("Job (priority %d) retry dropped: queue full\n", j.priority)
-										j.result <- "error: queue full during retry\n"
+										select {
+										case j.result <- "error: queue full during retry\n":
+										default:
+										}
 										m.IncFailed()
 										m.DecLoad(1)
 									}
